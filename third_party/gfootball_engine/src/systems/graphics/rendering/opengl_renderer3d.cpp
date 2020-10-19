@@ -23,7 +23,6 @@
 #include <OpenGL/gl3ext.h>
 #else
 #include <GL/gl.h>
-//#include <GL/glcorearb.h>
 #endif
 #include <cmath>
 #include "wrap_SDL.h"
@@ -44,7 +43,6 @@
 #ifdef WIN32
 #include <wingdi.h>
 #endif
-
 
 namespace blunted {
 
@@ -78,9 +76,9 @@ OpenGLRenderer3D::~OpenGLRenderer3D() {
 
 void OpenGLRenderer3D::SwapBuffers() {
   DO_VALIDATION;
-  last_screen_.resize(1280 * 720 * 3);
+  last_screen_.resize(context_width * context_height * 3);
   SDL_GL_SwapWindow(window);
-  mapping.glReadPixels(0, 0, 1280, 720, GL_RGB, GL_UNSIGNED_BYTE,
+  mapping.glReadPixels(0, 0, context_width, context_height, GL_RGB, GL_UNSIGNED_BYTE,
                        &last_screen_[0]);
 }
 
@@ -110,7 +108,7 @@ void OpenGLRenderer3D::RenderOverlay2D(
 
   UseShader("overlay");
 
-  Matrix4 orthoMatrix = CreateOrthoMatrix(0, 1280, 720, 0, 0.1, 10);
+  Matrix4 orthoMatrix = CreateOrthoMatrix(0, context_width, context_height, 0, 0.1, 10);
   SetMatrix("projection", orthoMatrix);
 
   mapping.glBindVertexArray(overlayBuffer.vertexArrayID);
@@ -375,8 +373,9 @@ void OpenGLRenderer3D::InitializeOverlayAndQuadBuffers() {
   quadBuffer = CreateSimpleVertexBuffer(quadVertices, sizeof(quadVertices));
 }
 
-bool OpenGLRenderer3D::CreateContext(int width, int height, int bpp,
-                                     bool fullscreen) {
+bool OpenGLRenderer3D::CreateContextInternal(int width, int height, int bpp,
+                                             bool fullscreen,
+                                             bool exit_on_version_too_low) {
   DO_VALIDATION;
   this->context_width = width;
   this->context_height = height;
@@ -427,7 +426,6 @@ bool OpenGLRenderer3D::CreateContext(int width, int height, int bpp,
   //    *reinterpret_cast<void**>(&(mapping.func)) =
   //    SDL_GL_GetProcAddress(#func); *reinterpret_cast<void**>(&(mapping.func))
   //    = (void*) func;
-
 #define SDL_PROC(ret, func, params)                                        \
   do {                                                                     \
     *reinterpret_cast<void **>(&(mapping.func)) =                          \
@@ -449,7 +447,6 @@ bool OpenGLRenderer3D::CreateContext(int width, int height, int bpp,
     //ASSERT_TRUE(glGetIntegervFunc != nullptr);
     mapping.glGetIntegerv(GL_MAJOR_VERSION, &glVersion[0]);
     mapping.glGetIntegerv(GL_MINOR_VERSION, &glVersion[1]);
-    //printf("Debug: OpenGL version: %i.%i\n", glVersion[0], glVersion[1]);
 
     if (!context) {
       DO_VALIDATION;
@@ -462,22 +459,19 @@ bool OpenGLRenderer3D::CreateContext(int width, int height, int bpp,
     if (glVersion[0] < 4) {
       DO_VALIDATION;
       if (glVersion[0] == 3 && glVersion[1] >= 2) higherThan32 = true;
-    } else
+    } else {
       higherThan32 = true;
-
-    if (!higherThan32) Log(e_Warning, "OpenGLRenderer3D", "CreateContext", "OpenGL version not equal to or higher than 3.2 (or not reported as such)");
-
-    //SDL_WM_SetCaption("Gameplay Football", NULL);
-
+    }
+    if (!higherThan32 && exit_on_version_too_low) {
+      return false;
+    }
 
 #ifdef __linux__
     bool success = true;//glXSwapIntervalSGI(-1); // anti-tear blah
 #endif
 
     largest_supported_anisotropy = 2;
-//#ifndef __APPLE__  // Can be used to check for Core Profile Mode on Linux
     mapping.glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest_supported_anisotropy);
-//#endif
     //largest_supported_anisotropy = clamp(largest_supported_anisotropy, 0, 8); // don't overdo it
 
 //    mapping.glDisable(GL_LIGHTING);
@@ -521,6 +515,20 @@ bool OpenGLRenderer3D::CreateContext(int width, int height, int bpp,
     mapping.glDisable(GL_MULTISAMPLE);
 
     return true;
+}
+
+bool OpenGLRenderer3D::CreateContext(int width, int height, int bpp,
+                                     bool fullscreen) {
+  if (!CreateContextInternal(width, height, bpp, fullscreen, true)) {
+    SDL_Quit();
+    Log(e_Warning, "OpenGLRenderer3D", "", "Failed to init OpenGL, trying with MESA.");
+    char kGLVersion[] = "MESA_GL_VERSION_OVERRIDE=3.2";
+    char kGLSLMesaVersion[] = "MESA_GLSL_VERSION_OVERRIDE=150";
+    putenv(kGLVersion);
+    putenv(kGLSLMesaVersion);
+    return CreateContextInternal(width, height, bpp, fullscreen, false);
+  }
+  return true;
 }
 
 void OpenGLRenderer3D::Exit() {
@@ -1485,10 +1493,10 @@ GLenum GetGLPixelFormat(e_PixelFormat pixelFormat) {
     case e_PixelFormat_DepthComponent:
       format = GL_DEPTH_COMPONENT;
       break;
-//  Deprecated:
-//    case e_PixelFormat_Luminance:
-//      format = GL_LUMINANCE;
-//      break;
+    case e_PixelFormat_Luminance:
+      Log(e_Error, "OpenGLRenderer3D", "GetGLPixelFormat",
+          "e_PixelFormat_Luminance not supported");
+      break;
   }
 
   return format;

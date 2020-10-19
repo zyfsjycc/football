@@ -140,13 +140,13 @@ namespace blunted {
 
       signed int _cache_activeTextureUnit = 0;
       screenshoot last_screen_;
-
       // members and functions for rendering overlay with shaders instead of deprecated methods
       VertexBufferID overlayBuffer;  // buffer for drawing textures such as player's names and game score
       VertexBufferID quadBuffer;     // buffer for drawing simple quads
       VertexBufferID CreateSimpleVertexBuffer(float *vertices, unsigned int size);
       void DeleteSimpleVertexBuffer(VertexBufferID vertexBufferID);
       void InitializeOverlayAndQuadBuffers();
+      bool CreateContextInternal(int width, int height, int bpp, bool fullscreen, bool exit_on_version_too_low);
   };
 }
 

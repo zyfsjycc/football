@@ -4,7 +4,8 @@ This repository contains an RL environment based on open-source game Gameplay
 Football. <br> It was created by the Google Brain team for research purposes.
 
 Useful links:
-* __(NEW!)__ [GRF Tournament](https://research-football.dev/tournament) - take part in the Tournament and become the new GRF Champion! Starting April 2020.
+
+* __(NEW!)__ [GRF Kaggle competition](https://www.kaggle.com/c/google-football) - take part in the competition playing games against others, win prizes and become the GRF Champion!
 * [GRF Game Server](https://research-football.dev/) - challenge other researchers!
 * [Run in Colab](https://colab.research.google.com/github/google-research/football/blob/master/gfootball/colabs/gfootball_example_from_prebuild.ipynb) - start training in less that 2 minutes.
 * [Google Research Football Paper](https://arxiv.org/abs/1907.11180)
@@ -27,10 +28,14 @@ Open our example [Colab](https://colab.research.google.com/github/google-researc
 
 This method doesn't support game rendering on screen - if you want to see the game running, please use the method below.
 
+### Using Docker
+
+This is the recommended way to avoid incompatible package versions.
+Instructions are available [here](gfootball/doc/docker.md).
+
 ### On your computer
 
 #### 1. Install required packages
-
 #### Linux
 ```
 sudo apt-get install git cmake build-essential libgl1-mesa-dev libsdl2-dev \
@@ -39,47 +44,61 @@ libdirectfb-dev libst-dev mesa-utils xvfb x11vnc libsdl-sge-dev python3-pip
 ```
 
 #### Mac OS X
-First install [brew](https://brew.sh/). It should automatically install Command Line Tools. 
-Next install required packages: 
+First install [brew](https://brew.sh/). It should automatically install Command Line Tools.
+Next install required packages:
+
 ```
 brew install git python3 cmake sdl2 sdl2_image sdl2_ttf sdl2_gfx boost boost-python3
 ```
+To set up `pygame`, it is also required to install older versions of SDL:
 
-#### 2. Clone the game from GitHub master
+```
+brew install sdl sdl_image sdl_mixer sdl_ttf portmidi
+```
+
+#### 2a. From PyPi package
+```
+pip3 install gfootball
+```
+
+#### 2b. Installing from sources using GitHub repository
+
 ```
 git clone https://github.com/google-research/football.git
 cd football
 ```
 
-#### Optional: Create and activate [virtual environment](https://docs.python.org/3/tutorial/venv.html)
+Optionally you can use [virtual environment](https://docs.python.org/3/tutorial/venv.html):
+
 ```
 python3 -m venv football-env
 source football-env/bin/activate
 ```
 
-#### 3. Install the game
+The last step is to build the environment:
+
 ```
 pip3 install .
 ```
-This command can run for a couple of minutes, as it compiles the C++ environment in the background. 
+This command can run for a couple of minutes, as it compiles the C++ environment in the background.
 
-#### 4. Time to play!
+#### 3. Time to play!
 ```
 python3 -m gfootball.play_game --action_set=full
 ```
-Make sure to check out the [keyboard mappings](#keyboard-mappings).  
+Make sure to check out the [keyboard mappings](#keyboard-mappings).
 To quit the game press Ctrl+C in the terminal.
 
 # Contents #
 
-* [Running experiments](#training-agents-to-play-GRF)
+* [Running training](#training-agents-to-play-GRF)
 * [Playing the game](#playing-the-game)
     * [Keyboard mappings](#keyboard-mappings)
     * [Play vs built-in AI](#play-vs-built-in-AI)
     * [Play vs pre-trained agent](#play-vs-pre-trained-agent)
     * [Trained checkpoints](#trained-checkpoints)
 * [Environment API](gfootball/doc/api.md)
-* [Observations](gfootball/doc/observation.md)
+* [Observations & Actions](gfootball/doc/observation.md)
 * [Scenarios](gfootball/doc/scenarios.md)
 * [Multi-agent support](gfootball/doc/multi_agent.md)
 * [Running in docker](gfootball/doc/docker.md)
@@ -88,13 +107,14 @@ To quit the game press Ctrl+C in the terminal.
 ## Training agents to play GRF
 
 ### Run training
-In order to run TF training, install additional dependencies:
+In order to run TF training, install additional dependencies
+(or alternatively use provided [Docker image](gfootball/doc/docker.md)):
 
-- Update PIP, so that tensorflow 1.15 is available: `python3 -m pip install --upgrade pip`
-- TensorFlow: `pip3 install "tensorflow==1.15"` or
-  `pip3 install "tensorflow-gpu==1.15"`, depending on whether you want CPU or
+- Update PIP, so that tensorflow 1.15 is available: `python3 -m pip install --upgrade pip setuptools`
+- TensorFlow: `pip3 install tensorflow==1.15.*` or
+  `pip3 install tensorflow-gpu==1.15.*`, depending on whether you want CPU or
   GPU version;
-- Sonnet: `pip3 install "dm-sonnet<2.0.0"`;
+- Sonnet: `pip3 install dm-sonnet==1.*`;
 - OpenAI Baselines:
   `pip3 install git+https://github.com/openai/baselines.git@master`.
 
@@ -161,8 +181,13 @@ For example extra_players='ppo2_cnn:right_players=1,policy=gfootball_impala_cnn,
 
 ## Frequent Problems & Solutions
 
-### Rendering not working / "OpenGL version not equal to or higher than 3.2"
+### Rendering off-screen (on a display-less server / without GPU)
+It is possible to do software rendering with MESA. For that, before starting
+environment you need to create virtual display (assuming you use the default resolution):
 
-Solution: set environment variables for MESA driver, like this:
+```
+Xvfb :1 -screen 0 1280x720x24+32 -fbdir /var/tmp &
+export DISPLAY=:1
+```
 
-`MESA_GL_VERSION_OVERRIDE=3.2 MESA_GLSL_VERSION_OVERRIDE=150 python3 -m gfootball.play_game`
+Note that software rendering significantly increases CPU usage and is slow.
